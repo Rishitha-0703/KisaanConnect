@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>KisaanConnect - Checkout</title>
+
+    <link rel="stylesheet"
+          href="../static/style.css">
+
+</head>
+
+
+<body>
+
+
+<header class="top-bar">
+
+    <h1>
+        🌾 KisaanConnect
+    </h1>
+
+    <div>
+
+        <select
+            id="languageSelect"
+            onchange="changeLanguage(this.value)"
+        >
+
+            <option value="en">
+                English
+            </option>
+
+            <option value="te">
+                తెలుగు
+            </option>
+
+            <option value="hi">
+                हिंदी
+            </option>
+
+        </select>
+
+    </div>
+
+</header>
+
+
+<div class="page-container">
+
+
+    <h1>
+        🛒 Checkout
+    </h1>
+
+
+    <!-- ORDER SUMMARY -->
+
+    <h2>
+        Order Summary
+    </h2>
+
+
+    <div id="checkoutItems">
+
+    </div>
+
+
+    <div id="checkoutTotal"
+         style="
+            font-size:28px;
+            font-weight:bold;
+            margin:20px 0;
+         ">
+
+        ₹0
+
+    </div>
+
+
+    <!-- DELIVERY -->
+
+    <label>
+        📍 Delivery Location
+    </label>
+
+    <textarea
+        id="deliveryLocation"
+        placeholder="Enter your delivery address"
+        required
+        style="
+            width:100%;
+            min-height:80px;
+            padding:10px;
+            margin-bottom:20px;
+        "
+    ></textarea>
+
+
+    <!-- PAYMENT -->
+
+    <label>
+        💳 Payment Method
+    </label>
+
+    <select
+        id="paymentMethod"
+        onchange="toggleUPI()"
+        style="
+            width:100%;
+            padding:12px;
+            margin-bottom:15px;
+        "
+    >
+
+        <option value="UPI">
+            UPI
+        </option>
+
+        <option value="Cash on Delivery">
+            Cash on Delivery
+        </option>
+
+    </select>
+
+
+    <!-- FARMER PAYMENT INFORMATION -->
+
+    <div
+        id="upiBox"
+        style="
+            background:#f1f8e9;
+            padding:20px;
+            border-radius:12px;
+            margin-bottom:20px;
+        "
+    >
+
+        <h3>
+            💳 Payment goes to farmer
+        </h3>
+
+
+        <p>
+            The payment will be sent to the farmer
+            who owns the selected product.
+        </p>
+
+
+        <div id="farmerPaymentDetails">
+
+            Loading farmer payment details...
+
+        </div>
+
+
+        <button
+            type="button"
+            id="payButton"
+            onclick="openUPIPayment()"
+            style="
+                background:#2e7d32;
+                color:white;
+                border:none;
+                padding:12px 20px;
+                border-radius:8px;
+                cursor:pointer;
+                font-size:16px;
+                margin-top:10px;
+            "
+        >
+
+            💳 Pay Now
+
+        </button>
+
+    </div>
+
+
+    <button
+        type="button"
+        onclick="submitCheckout()"
+        style="
+            background:#2e7d32;
+            color:white;
+            border:none;
+            padding:14px 25px;
+            border-radius:8px;
+            font-size:18px;
+            cursor:pointer;
+        "
+    >
+
+        🛒 Place Order
+
+    </button>
+
+
+    <p id="checkoutMessage"></p>
+
+
+</div>
+
+
+<script src="../static/script.js"></script>
+
+
+<script>
+
+
+const API =
+    "http://127.0.0.1:5000";
+
+
+let farmerPaymentData = [];
+
+
+// =====================================================
+// LOAD CHECKOUT
+// =====================================================
+
+async function loadCheckout() {
+
+    const cart =
+        JSON.parse(
+            localStorage.getItem("cart")
+        ) || [];
+
+
+    const container =
+        document.getElementById(
+            "checkoutItems"
+        );
+
+
+    const totalElement =
+        document.getElementById(
+            "checkoutTotal"
+        );
+
+
+    if (cart.length === 0) {
+
+        container.innerHTML =
+            "<h2>Your cart is empty.</h2>";
+
+        totalElement.textContent =
+            "₹0";
+
+        return;
+
+    }
+
+
+    try {
+
+        const response =
+            await fetch(
+                API + "/api/products"
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!data.success) {
+
+            container.innerHTML =
+                "<h2>Unable to load products.</h2>";
+
+            return;
+
+        }
+
+
+        let total = 0;
+
+        container.innerHTML = "";
+
+        farmerPaymentData = [];
+
+
+        cart.forEach(item => {
+
+            const product =
+                data.products.find(
+                    p =>
+                        Number(p.id) ===
+                        Number(item.id)
+                );
+
+
+            if (!product) return;
+
+
+            const quantity =
+                Number(item.quantity);
+
+
+            const price =
+                Number(product.price);
+
+
+            const itemTotal =
+                price * quantity;
+
+
+            total += itemTotal;
+
+
+            farmerPaymentData.push({
+
+                upi:
+                    product.farmer_upi,
+
+                name:
+                    product.farmer_name,
+
+                amount:
+                    itemTotal
+
+            });
+
+
+            container.innerHTML += `
+
+                <div
+                    class="checkout-item"
+                    style="
+                        padding:20px;
+                        margin-bottom:15px;
+                        background:#f5f5f5;
+                        border-radius:12px;
+                    "
+                >
+
+                    <h3>
+                        ${product.name}
+                    </h3>
+
+                    <p>
+                        Price per kg:
+                        ₹${price}
+                    </p>
+
+                    <p>
+                        Quantity:
+                        ${quantity} kg
+                    </p>
+
+                    <p>
+                        <strong>
+                            Total:
+                            ₹${itemTotal}
+                        </strong>
+                    </p>
+
+                    <p>
+                        👨‍🌾 Farmer:
+                        ${product.farmer_name}
+                    </p>
+
+                </div>
+
+            `;
+
+        });
+
+
+        totalElement.innerHTML =
+            "Total: ₹" + total;
+
+
+        showFarmerPayment();
+
+    }
+    catch(error) {
+
+        console.error(error);
+
+        container.innerHTML =
+            "<h2>Cannot connect to backend.</h2>";
+
+    }
+
+}
+
+
+// =====================================================
+// SHOW FARMER UPI
+// =====================================================
+
+function showFarmerPayment() {
+
+    const box =
+        document.getElementById(
+            "farmerPaymentDetails"
+        );
+
+
+    if (
+        farmerPaymentData.length === 0
+    ) {
+
+        box.innerHTML =
+            "No farmer information found.";
+
+        return;
+
+    }
+
+
+    let html = "";
+
+
+    farmerPaymentData.forEach(
+        farmer => {
+
+            if (!farmer.upi) {
+
+                html += `
+
+                    <p style="color:red;">
+                        ❌ Farmer UPI ID is not available.
+                    </p>
+
+                `;
+
+            }
+            else {
+
+                html += `
+
+                    <div
+                        style="
+                            background:white;
+                            padding:12px;
+                            margin:8px 0;
+                            border-radius:8px;
+                        "
+                    >
+
+                        <strong>
+                            🌾 ${farmer.name}
+                        </strong>
+
+                        <br>
+
+                        UPI ID:
+                        <strong>
+                            ${farmer.upi}
+                        </strong>
+
+                        <br>
+
+                        Amount:
+                        <strong>
+                            ₹${farmer.amount}
+                        </strong>
+
+                    </div>
+
+                `;
+
+            }
+
+        }
+    );
+
+
+    box.innerHTML = html;
+
+}
+
+
+// =====================================================
+// UPI PAYMENT
+// =====================================================
+
+function openUPIPayment() {
+
+    if (
+        farmerPaymentData.length === 0
+    ) {
+
+        alert(
+            "Farmer payment details are not available."
+        );
+
+        return;
+
+    }
+
+
+    const farmer =
+        farmerPaymentData[0];
+
+
+    if (!farmer.upi) {
+
+        alert(
+            "Farmer has not added a UPI ID."
+        );
+
+        return;
+
+    }
+
+
+    const upiURL =
+        "upi://pay" +
+        "?pa=" +
+        encodeURIComponent(
+            farmer.upi
+        ) +
+        "&pn=" +
+        encodeURIComponent(
+            farmer.name
+        ) +
+        "&am=" +
+        encodeURIComponent(
+            farmer.amount
+        ) +
+        "&cu=INR";
+
+
+    window.location.href =
+        upiURL;
+
+}
+
+
+// =====================================================
+// PAYMENT METHOD
+// =====================================================
+
+function toggleUPI() {
+
+    const payment =
+        document.getElementById(
+            "paymentMethod"
+        );
+
+
+    const upiBox =
+        document.getElementById(
+            "upiBox"
+        );
+
+
+    if (
+        payment.value === "UPI"
+    ) {
+
+        upiBox.style.display =
+            "block";
+
+    }
+    else {
+
+        upiBox.style.display =
+            "none";
+
+    }
+
+}
+
+
+// =====================================================
+// PLACE ORDER
+// =====================================================
+
+async function submitCheckout() {
+
+    const user =
+        JSON.parse(
+            localStorage.getItem("user")
+        );
+
+
+    if (
+        !user ||
+        user.role !== "consumer"
+    ) {
+
+        alert(
+            "Please login as consumer."
+        );
+
+        return;
+
+    }
+
+
+    const cart =
+        JSON.parse(
+            localStorage.getItem("cart")
+        ) || [];
+
+
+    if (cart.length === 0) {
+
+        alert(
+            "Your cart is empty."
+        );
+
+        return;
+
+    }
+
+
+    const deliveryLocation =
+        document.getElementById(
+            "deliveryLocation"
+        ).value.trim();
+
+
+    const paymentMethod =
+        document.getElementById(
+            "paymentMethod"
+        ).value;
+
+
+    if (!deliveryLocation) {
+
+        alert(
+            "Please enter delivery location."
+        );
+
+        return;
+
+    }
+
+
+    const message =
+        document.getElementById(
+            "checkoutMessage"
+        );
+
+
+    message.textContent =
+        "Placing order...";
+
+
+    try {
+
+        for (
+            const item of cart
+        ) {
+
+            const farmer =
+                farmerPaymentData.find(
+                    f =>
+                        f.name ===
+                        item.farmer_name
+                );
+
+
+            const response =
+                await fetch(
+                    API + "/api/orders",
+                    {
+
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify({
+
+                                consumer_id:
+                                    user.id,
+
+                                product_id:
+                                    item.id,
+
+                                quantity:
+                                    item.quantity,
+
+                                delivery_location:
+                                    deliveryLocation,
+
+                                payment_method:
+                                    paymentMethod,
+
+                                upi_id:
+                                    paymentMethod === "UPI"
+                                    ? (
+                                        farmer
+                                        ? farmer.upi
+                                        : ""
+                                      )
+                                    : ""
+
+                            })
+
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!data.success) {
+
+                throw new Error(
+                    data.message
+                );
+
+            }
+
+        }
+
+
+        localStorage.removeItem(
+            "cart"
+        );
+
+
+        alert(
+            "✅ Order placed successfully!"
+        );
+
+
+        window.location.href =
+            "orders.html";
+
+    }
+    catch(error) {
+
+        console.error(error);
+
+        message.textContent =
+            error.message ||
+            "Order failed.";
+
+    }
+
+}
+
+
+// =====================================================
+// START
+// =====================================================
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function() {
+
+        loadCheckout();
+
+        toggleUPI();
+
+    }
+);
+
+</script>
+
+
+</body>
+
+</html>

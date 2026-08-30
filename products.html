@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>KisaanConnect - Products</title>
+
+    <link rel="stylesheet"
+          href="../static/style.css">
+
+</head>
+
+<body>
+
+<header class="top-bar">
+
+    <h1>🌾 KisaanConnect</h1>
+
+    <div>
+
+        <select id="languageSelect"
+                onchange="changeLanguage(this.value)">
+
+            <option value="en">English</option>
+            <option value="te">తెలుగు</option>
+            <option value="hi">हिंदी</option>
+
+        </select>
+
+
+        <a href="cart.html"
+           class="cart-button">
+
+            🛒 Cart
+
+            <span id="cartCount">
+                0
+            </span>
+
+        </a>
+
+    </div>
+
+</header>
+
+
+<div class="page-container">
+
+    <h1>
+        Available Products
+    </h1>
+
+
+    <div id="productsContainer"
+         class="products-grid">
+
+    </div>
+
+</div>
+
+
+<script src="../static/script.js"></script>
+
+
+<script>
+
+const API =
+    "http://127.0.0.1:5000";
+
+
+const user =
+    JSON.parse(
+        localStorage.getItem("user")
+    );
+
+
+// =====================================================
+// LOAD PRODUCTS
+// =====================================================
+
+async function loadProducts() {
+
+    const container =
+        document.getElementById(
+            "productsContainer"
+        );
+
+    try {
+
+        const response =
+            await fetch(
+                API + "/api/products"
+            );
+
+        const data =
+            await response.json();
+
+
+        if (!data.success) {
+
+            container.innerHTML =
+                "<p>Unable to load products.</p>";
+
+            return;
+
+        }
+
+
+        container.innerHTML = "";
+
+
+        if (
+            !data.products ||
+            data.products.length === 0
+        ) {
+
+            container.innerHTML =
+                "<p>No products available.</p>";
+
+            return;
+
+        }
+
+
+        data.products.forEach(
+            product => {
+
+                const card =
+                    document.createElement(
+                        "div"
+                    );
+
+                card.className =
+                    "product-card";
+
+
+                // =====================================
+                // IMAGE
+                // =====================================
+
+                let imageHTML = "";
+
+                if (product.image) {
+
+                    imageHTML = `
+
+                        <img
+                            src="${product.image}"
+                            alt="${product.name}"
+                            style="
+                                width:100%;
+                                height:180px;
+                                object-fit:cover;
+                                border-radius:10px;
+                            "
+                        >
+
+                    `;
+
+                }
+                else {
+
+                    imageHTML = `
+
+                        <div
+                            style="
+                                font-size:60px;
+                                text-align:center;
+                                padding:40px;
+                            "
+                        >
+                            🌾
+                        </div>
+
+                    `;
+
+                }
+
+
+                const stock =
+                    Number(product.quantity) || 0;
+
+
+                // =====================================
+                // FARMER'S OWN PRODUCT
+                // =====================================
+
+                if (
+                    user &&
+                    user.role === "farmer" &&
+                    Number(product.farmer_id) ===
+                    Number(user.id)
+                ) {
+
+                    card.innerHTML = `
+
+                        ${imageHTML}
+
+                        <h2>
+                            ${product.name}
+                        </h2>
+
+                        <p>
+                            Category:
+                            ${product.category}
+                        </p>
+
+                        <p>
+                            Price:
+                            ₹${product.price}
+                        </p>
+
+                        <p>
+                            Current Stock:
+                            <strong id="stock-${product.id}">
+                                ${stock}
+                            </strong>
+                        </p>
+
+
+                        <div style="
+                            display:flex;
+                            gap:8px;
+                            margin:10px 0;
+                        ">
+
+                            <input
+                                type="number"
+                                id="newStock-${product.id}"
+                                min="0"
+                                value="${stock}"
+                                style="
+                                    width:100px;
+                                    padding:8px;
+                                "
+                            >
+
+                            <button
+                                onclick="updateStock(${product.id})"
+                            >
+                                📦 Update Stock
+                            </button>
+
+                        </div>
+
+
+                        <button
+                            onclick="deleteProduct(${product.id})"
+                            style="
+                                background:#d32f2f;
+                                color:white;
+                                border:none;
+                                padding:10px 16px;
+                                border-radius:8px;
+                                cursor:pointer;
+                            "
+                        >
+                            🗑️ Delete Product
+                        </button>
+
+                    `;
+
+                }
+
+
+                // =====================================
+                // CONSUMER VIEW
+                // =====================================
+
+                else {
+
+                    let stockHTML = "";
+                    let cartButton = "";
+
+
+                    if (stock <= 0) {
+
+                        stockHTML = `
+
+                            <p style="
+                                color:#d32f2f;
+                                font-weight:bold;
+                                font-size:18px;
+                            ">
+                                🔴 OUT OF STOCK
+                            </p>
+
+                        `;
+
+                        cartButton = `
+
+                            <button
+                                disabled
+                                style="
+                                    background:#aaa;
+                                    color:white;
+                                    border:none;
+                                    padding:10px 16px;
+                                    border-radius:8px;
+                                    cursor:not-allowed;
+                                "
+                            >
+                                🛒 Out of Stock
+                            </button>
+
+                        `;
+
+                    }
+
+                    else {
+
+                        stockHTML = `
+
+                            <p style="
+                                color:green;
+                                font-weight:bold;
+                            ">
+                                🟢 In Stock:
+                                ${stock}
+                            </p>
+
+                        `;
+
+                        cartButton = `
+
+                            <button
+                                onclick="addProductToCart(${product.id})"
+                            >
+                                🛒 Add to Cart
+                            </button>
+
+                        `;
+
+                    }
+
+
+                    card.innerHTML = `
+
+                        ${imageHTML}
+
+                        <h2>
+                            ${product.name}
+                        </h2>
+
+                        <p>
+                            👨‍🌾 Farmer:
+                            ${product.farmer_name}
+                        </p>
+
+                        <p>
+                            Category:
+                            ${product.category}
+                        </p>
+
+                        <p>
+                            Price:
+                            ₹${product.price}
+                        </p>
+
+                        <p>
+                            📍 ${product.location}
+                        </p>
+
+                        ${stockHTML}
+
+                        <p>
+                            ${product.description || ""}
+                        </p>
+
+                        ${cartButton}
+
+                    `;
+
+                }
+
+
+                container.appendChild(
+                    card
+                );
+
+            }
+        );
+
+    }
+    catch (error) {
+
+        console.error(error);
+
+        container.innerHTML = `
+            <p>
+                Cannot connect to backend.
+                Please start app.py.
+            </p>
+        `;
+
+    }
+
+}
+
+
+// =====================================================
+// UPDATE STOCK
+// =====================================================
+
+async function updateStock(
+    productId
+) {
+
+    if (!user ||
+        user.role !== "farmer") {
+
+        return;
+
+    }
+
+
+    const input =
+        document.getElementById(
+            "newStock-" + productId
+        );
+
+
+    const stock =
+        Number(input.value);
+
+
+    if (
+        isNaN(stock) ||
+        stock < 0
+    ) {
+
+        alert(
+            "Please enter a valid stock quantity."
+        );
+
+        return;
+
+    }
+
+
+    try {
+
+        const response =
+            await fetch(
+                API +
+                "/api/products/" +
+                productId +
+                "/stock",
+                {
+
+                    method: "PUT",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+
+                        farmer_id:
+                            user.id,
+
+                        stock:
+                            stock
+
+                    })
+
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (data.success) {
+
+            alert(
+                "Stock updated successfully!"
+            );
+
+            loadProducts();
+
+        }
+        else {
+
+            alert(
+                data.message ||
+                "Unable to update stock."
+            );
+
+        }
+
+    }
+    catch (error) {
+
+        console.error(error);
+
+        alert(
+            "Cannot connect to backend."
+        );
+
+    }
+
+}
+
+
+// =====================================================
+// DELETE PRODUCT
+// =====================================================
+
+async function deleteProduct(
+    productId
+) {
+
+    if (!user ||
+        user.role !== "farmer") {
+
+        return;
+
+    }
+
+
+    if (
+        !confirm(
+            "Are you sure you want to permanently delete this product?"
+        )
+    ) {
+
+        return;
+
+    }
+
+
+    try {
+
+        const response =
+            await fetch(
+                API +
+                "/api/products/" +
+                productId +
+                "?farmer_id=" +
+                user.id,
+                {
+                    method: "DELETE"
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (data.success) {
+
+            alert(
+                "Product deleted successfully."
+            );
+
+            loadProducts();
+
+        }
+        else {
+
+            alert(
+                data.message ||
+                "Unable to delete product."
+            );
+
+        }
+
+    }
+    catch (error) {
+
+        console.error(error);
+
+        alert(
+            "Cannot connect to backend."
+        );
+
+    }
+
+}
+
+
+// =====================================================
+// ADD TO CART
+// =====================================================
+
+function addProductToCart(
+    productId
+) {
+
+    if (!user ||
+        user.role !== "consumer") {
+
+        alert(
+            "Only consumers can add products to cart."
+        );
+
+        return;
+
+    }
+
+
+    let cart =
+        JSON.parse(
+            localStorage.getItem("cart")
+        ) || [];
+
+
+    const existing =
+        cart.find(
+            item =>
+                Number(item.product_id) ===
+                Number(productId)
+        );
+
+
+    if (existing) {
+
+        existing.quantity += 1;
+
+    }
+    else {
+
+        cart.push({
+
+            product_id:
+                productId,
+
+            quantity:
+                1
+
+        });
+
+    }
+
+
+    localStorage.setItem(
+        "cart",
+        JSON.stringify(cart)
+    );
+
+
+    updateCartCount();
+
+
+    alert(
+        "Product added to cart!"
+    );
+
+}
+
+
+// =====================================================
+// CART COUNT
+// =====================================================
+
+function updateCartCount() {
+
+    const cart =
+        JSON.parse(
+            localStorage.getItem("cart")
+        ) || [];
+
+
+    const count =
+        document.getElementById(
+            "cartCount"
+        );
+
+
+    if (count) {
+
+        count.textContent =
+            cart.reduce(
+                (total, item) =>
+                    total +
+                    Number(item.quantity || 1),
+                0
+            );
+
+    }
+
+}
+
+
+// =====================================================
+// START
+// =====================================================
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        loadProducts();
+
+        updateCartCount();
+
+    }
+);
+
+</script>
+
+
+</body>
+
+</html>

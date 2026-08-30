@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>KisaanConnect - My Orders</title>
+
+    <link rel="stylesheet"
+          href="../static/style.css">
+
+</head>
+
+<body>
+
+<header class="top-bar">
+
+    <h1>📦 KisaanConnect</h1>
+
+    <select id="languageSelect"
+            onchange="changeLanguage(this.value)">
+
+        <option value="en">English</option>
+        <option value="te">తెలుగు</option>
+        <option value="hi">हिंदी</option>
+
+    </select>
+
+</header>
+
+
+<div class="page-container">
+
+    <h1 data-i18n="myOrders">
+        My Orders
+    </h1>
+
+
+    <div id="ordersContainer">
+    </div>
+
+
+    <br>
+
+    <a href="consumer_dashboard.html"
+       class="back-link">
+
+        ← Dashboard
+
+    </a>
+
+</div>
+
+
+<script src="../static/script.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>KisaanConnect</title>
+
+    <link rel="stylesheet"
+          href="../static/style.css">
+
+</head>
+
+<body>
+
+<div class="home-container">
+
+    <div class="logo-circle">
+        🌾
+    </div>
+
+    <h1>KisaanConnect</h1>
+
+    <p class="tagline">
+        Connecting Farmers Directly With Consumers
+    </p>
+
+    <h2>Who are you?</h2>
+
+    <div class="role-container">
+
+        <!-- FARMER -->
+
+        <a href="register.html?role=farmer"
+           class="role-card"
+           onclick="selectRole('farmer')">
+
+            <div class="role-icon">
+                👨‍🌾
+            </div>
+
+            <h3>Farmer</h3>
+
+            <p>
+                Sell your agricultural products directly.
+            </p>
+
+        </a>
+
+
+        <!-- CONSUMER -->
+
+        <a href="register.html?role=consumer"
+           class="role-card"
+           onclick="selectRole('consumer')">
+
+            <div class="role-icon">
+                🛒
+            </div>
+
+            <h3>Consumer</h3>
+
+            <p>
+                Buy fresh products directly from farmers.
+            </p>
+
+        </a>
+
+    </div>
+
+</div>
+
+
+<script>
+
+function selectRole(role) {
+
+    localStorage.setItem(
+        "selectedRole",
+        role
+    );
+
+}
+
+</script>
+
+</body>
+
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>KisaanConnect - Cart</title>
+
+    <link rel="stylesheet"
+          href="../static/style.css">
+
+</head>
+
+<body>
+
+<header class="top-bar">
+
+    <h1>🛒 KisaanConnect</h1>
+
+    <select id="languageSelect"
+            onchange="changeLanguage(this.value)">
+
+        <option value="en">English</option>
+        <option value="te">తెలుగు</option>
+        <option value="hi">हिंदी</option>
+
+    </select>
+
+</header>
+
+
+<div class="page-container">
+
+    <h1 data-i18n="cart">
+        My Cart
+    </h1>
+
+
+    <div id="cartContainer">
+    </div>
+
+
+    <div id="cartTotal"
+         class="cart-total">
+    </div>
+
+
+    <button
+        onclick="goToCheckout()"
+        class="primary-button">
+
+        <span data-i18n="checkout">
+            Proceed to Checkout
+        </span>
+
+    </button>
+
+
+    <br><br>
+
+    <a href="products.html"
+       class="back-link">
+
+        ← Continue Shopping
+
+    </a>
+
+</div>
+
+
+<script src="../static/script.js"></script>
+
+</body>
+</html>

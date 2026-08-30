@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>KisaanConnect - Consumer</title>
+
+    <link rel="stylesheet"
+          href="../static/style.css">
+
+</head>
+
+<body>
+
+<nav>
+
+    <div class="nav-logo">
+        🌾 KisaanConnect
+    </div>
+
+    <a href="index.html"
+       onclick="logout()"
+       data-translate="logout">
+
+        Logout
+
+    </a>
+
+</nav>
+
+
+<div class="dashboard">
+
+    <h1>
+
+        <span data-translate="welcomeConsumer">
+            Welcome
+        </span>,
+
+        <span id="consumerName"></span>
+
+        🛒
+
+    </h1>
+
+
+    <p>
+
+        📍
+        <span id="consumerLocation"></span>
+
+    </p>
+
+
+    <div class="dashboard-grid">
+
+
+        <!-- BROWSE PRODUCTS -->
+
+        <a href="products.html"
+           class="dashboard-card">
+
+            <span>🥕</span>
+
+            <h2 data-translate="browseProducts">
+
+                Browse Products
+
+            </h2>
+
+            <p data-translate="browseProductsDesc">
+
+                Buy fresh products directly from farmers.
+
+            </p>
+
+        </a>
+
+
+        <!-- CART -->
+
+        <a href="cart.html"
+           class="dashboard-card">
+
+            <span>🛒</span>
+
+            <h2 data-translate="myCart">
+
+                My Cart
+
+            </h2>
+
+            <p data-translate="myCartDesc">
+
+                View products added to your cart.
+
+            </p>
+
+        </a>
+
+
+        <!-- ORDERS -->
+
+        <a href="orders.html"
+           class="dashboard-card">
+
+            <span>📦</span>
+
+            <h2 data-translate="myOrders">
+
+                My Orders
+
+            </h2>
+
+            <p data-translate="ordersDesc">
+
+                View your placed orders.
+
+            </p>
+
+        </a>
+
+
+    </div>
+
+</div>
+
+
+<script src="../static/script.js"></script>
+
+
+<script>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        const user =
+            JSON.parse(
+                localStorage.getItem("user")
+            );
+
+
+        if (!user) {
+
+            window.location.href =
+                "index.html";
+
+            return;
+
+        }
+
+
+        if (user.role !== "consumer") {
+
+            window.location.href =
+                "farmer_dashboard.html";
+
+            return;
+
+        }
+
+
+        document.getElementById(
+            "consumerName"
+        ).textContent =
+            user.name;
+
+
+        document.getElementById(
+            "consumerLocation"
+        ).textContent =
+            user.location;
+
+    }
+);
+
+
+function logout() {
+
+    localStorage.removeItem("user");
+
+    localStorage.removeItem("selectedRole");
+
+}
+
+</script>
+
+
+</body>
+
+</html>

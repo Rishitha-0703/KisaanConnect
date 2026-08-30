@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+<label>💳 Farmer UPI ID</label>
+
+<input
+    type="text"
+    id="upi_id"
+    name="upi_id"
+    placeholder="example@upi"
+    required>
+    <title>KisaanConnect - Add Product</title>
+
+    <link rel="stylesheet"
+          href="../static/style.css">
+
+</head>
+
+<body>
+
+<div class="form-container">
+
+    <div class="language-box">
+
+        🌐
+        <select id="languageSelect"
+                onchange="changeLanguage(this.value)">
+
+            <option value="en">English</option>
+            <option value="te">తెలుగు</option>
+            <option value="hi">हिंदी</option>
+
+        </select>
+
+    </div>
+
+
+    <h1 data-i18n="addProduct">
+        Add Product
+    </h1>
+
+
+    <form id="productForm">
+
+        <label data-i18n="productName">
+            Product Name
+        </label>
+
+        <div class="voice-row">
+
+            <input
+                type="text"
+                id="productName"
+                required
+                placeholder="Example: Tomato"
+            >
+
+            <button
+                type="button"
+                class="voice-button"
+                onclick="startVoice('productName')">
+                🎤
+            </button>
+
+        </div>
+
+
+        <label data-i18n="category">
+            Category
+        </label>
+
+        <select id="category" required>
+
+            <option value="">
+                Select
+            </option>
+
+            <option value="Vegetables">
+                Vegetables
+            </option>
+
+            <option value="Fruits">
+                Fruits
+            </option>
+
+            <option value="Grains">
+                Grains
+            </option>
+
+            <option value="Pulses">
+                Pulses
+            </option>
+
+            <option value="Spices">
+                Spices
+            </option>
+
+        </select>
+
+
+        <label data-i18n="quantity">
+            Quantity
+        </label>
+
+        <div class="voice-row">
+
+            <input
+                type="text"
+                id="quantity"
+                required
+                placeholder="Example: 100 kg"
+            >
+
+            <button
+                type="button"
+                class="voice-button"
+                onclick="startVoice('quantity')">
+                🎤
+            </button>
+
+        </div>
+
+
+        <label data-i18n="price">
+            Price ₹
+        </label>
+
+        <div class="voice-row">
+
+            <input
+                type="number"
+                id="price"
+                min="1"
+                required
+            >
+
+            <button
+                type="button"
+                class="voice-button"
+                onclick="startVoice('price')">
+                🎤
+            </button>
+
+        </div>
+
+
+        <label data-i18n="location">
+            Farm Location
+        </label>
+
+        <div class="voice-row">
+
+            <input
+                type="text"
+                id="productLocation"
+                required
+            >
+
+            <button
+                type="button"
+                class="voice-button"
+                onclick="startVoice('productLocation')">
+                🎤
+            </button>
+
+        </div>
+
+
+        <label data-i18n="description">
+            Description
+        </label>
+
+        <textarea
+            id="description"
+            placeholder="Describe your product">
+        </textarea>
+
+
+        <label data-i18n="productImage">
+            Product Image 🖼️
+        </label>
+
+        <input
+            type="file"
+            id="productImage"
+            accept="image/png,image/jpeg,image/webp"
+            onchange="previewImage(event)"
+        >
+
+
+        <img
+            id="imagePreview"
+            class="image-preview"
+            style="display:none;"
+        >
+
+
+        <button type="submit"
+                class="primary-button"
+                data-i18n="addProduct">
+
+            Add Product
+
+        </button>
+
+
+        <p id="productMessage"></p>
+
+    </form>
+
+
+    <a href="farmer_dashboard.html"
+       class="back-link">
+
+        ← Dashboard
+
+    </a>
+
+</div>
+
+
+<script src="../static/script.js"></script>
+
+</body>
+</html>
