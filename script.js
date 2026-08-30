@@ -60,7 +60,7 @@ function closeMessage() {
         notification.remove();
     }
 }
-const API = "https://kisaanconnect-aeny.onrender.com";
+const API = "http://127.0.0.1:5000";
 
 
 // =====================================================
