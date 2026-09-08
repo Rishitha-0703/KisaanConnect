@@ -3,30 +3,23 @@ from flask_cors import CORS
 import sqlite3
 import os
 import uuid
+import re
+
+
+# =========================================================
+# APP CONFIGURATION
+# =========================================================
 
 app = Flask(__name__)
 CORS(app)
 
-# =========================================================
-# PATHS
-# =========================================================
+BASE_DIR = os.path.dirname(__file__)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE = os.path.join(BASE_DIR, "database.db")
 
-DATABASE = os.path.join(
-    BASE_DIR,
-    "database.db"
-)
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 
-UPLOAD_FOLDER = os.path.join(
-    BASE_DIR,
-    "uploads"
-)
-
-os.makedirs(
-    UPLOAD_FOLDER,
-    exist_ok=True
-)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
@@ -45,7 +38,7 @@ def get_db():
 
 
 # =========================================================
-# INITIALIZE DATABASE
+# DATABASE INITIALIZATION
 # =========================================================
 
 def init_db():
@@ -53,7 +46,7 @@ def init_db():
     conn = get_db()
 
     # -----------------------------------------------------
-    # USERS
+    # USERS TABLE
     # -----------------------------------------------------
 
     conn.execute("""
@@ -63,22 +56,18 @@ def init_db():
 
             name TEXT NOT NULL,
 
-            email TEXT UNIQUE NOT NULL,
+            email TEXT NOT NULL,
 
             phone TEXT NOT NULL,
 
             location TEXT NOT NULL,
 
-            role TEXT NOT NULL,
-
-            upi_id TEXT DEFAULT ''
-
+            role TEXT NOT NULL
         )
     """)
 
-
     # -----------------------------------------------------
-    # PRODUCTS
+    # PRODUCTS TABLE
     # -----------------------------------------------------
 
     conn.execute("""
@@ -92,25 +81,20 @@ def init_db():
 
             category TEXT NOT NULL,
 
-            quantity REAL NOT NULL DEFAULT 0,
+            quantity TEXT NOT NULL,
 
             price REAL NOT NULL,
 
             location TEXT NOT NULL,
 
-            description TEXT DEFAULT '',
+            description TEXT,
 
-            image TEXT,
-
-            FOREIGN KEY (farmer_id)
-            REFERENCES users(id)
-
+            image TEXT
         )
     """)
 
-
     # -----------------------------------------------------
-    # ORDERS
+    # ORDERS TABLE
     # -----------------------------------------------------
 
     conn.execute("""
@@ -122,88 +106,101 @@ def init_db():
 
             product_id INTEGER NOT NULL,
 
-            quantity REAL NOT NULL,
+            quantity TEXT NOT NULL,
 
             total_price REAL NOT NULL,
 
-            delivery_location TEXT NOT NULL,
+            delivery_charge REAL DEFAULT 0,
 
-            payment_method TEXT NOT NULL,
-
-            upi_id TEXT DEFAULT '',
+            distance REAL DEFAULT 0,
 
             status TEXT DEFAULT 'Pending',
 
-            FOREIGN KEY (consumer_id)
-            REFERENCES users(id),
+            delivery_location TEXT,
 
-            FOREIGN KEY (product_id)
-            REFERENCES products(id)
+            payment_method TEXT,
 
+            upi_id TEXT
         )
     """)
 
+    conn.commit()
+
 
     # =====================================================
-    # ADD MISSING COLUMNS TO OLD DATABASES
+    # DATABASE MIGRATION
     # =====================================================
 
-    columns = {
+    # Add image column to old products table
+    try:
 
-        "users": [
+        conn.execute(
+            "ALTER TABLE products ADD COLUMN image TEXT"
+        )
 
-            ("upi_id", "TEXT")
+    except sqlite3.OperationalError:
 
-        ],
-
-        "products": [
-
-            ("image", "TEXT")
-
-        ],
-
-        "orders": [
-
-            ("delivery_location", "TEXT"),
-
-            ("payment_method", "TEXT"),
-
-            ("upi_id", "TEXT"),
-
-            ("status", "TEXT")
-
-        ]
-
-    }
+        pass
 
 
-    for table, table_columns in columns.items():
+    # Add delivery location to old orders table
+    try:
 
-        existing = conn.execute(
-            f"PRAGMA table_info({table})"
-        ).fetchall()
+        conn.execute(
+            "ALTER TABLE orders ADD COLUMN delivery_location TEXT"
+        )
 
+    except sqlite3.OperationalError:
 
-        existing_names = [
-
-            row["name"]
-
-            for row in existing
-
-        ]
+        pass
 
 
-        for column_name, column_type in table_columns:
+    # Add payment method to old orders table
+    try:
 
-            if column_name not in existing_names:
+        conn.execute(
+            "ALTER TABLE orders ADD COLUMN payment_method TEXT"
+        )
 
-                conn.execute(
-                    f"""
-                    ALTER TABLE {table}
-                    ADD COLUMN {column_name}
-                    {column_type}
-                    """
-                )
+    except sqlite3.OperationalError:
+
+        pass
+
+
+    # Add UPI ID to old orders table
+    try:
+
+        conn.execute(
+            "ALTER TABLE orders ADD COLUMN upi_id TEXT"
+        )
+
+    except sqlite3.OperationalError:
+
+        pass
+
+
+    # Add delivery charge to old orders table
+    try:
+
+        conn.execute(
+            "ALTER TABLE orders ADD COLUMN delivery_charge REAL DEFAULT 0"
+        )
+
+    except sqlite3.OperationalError:
+
+        pass
+
+
+    # Add distance to old orders table
+    try:
+
+        conn.execute(
+            "ALTER TABLE orders ADD COLUMN distance REAL DEFAULT 0"
+        )
+
+    except sqlite3.OperationalError:
+
+        pass
 
 
     conn.commit()
@@ -212,7 +209,7 @@ def init_db():
 
 
 # =========================================================
-# HOME
+# HOME / TEST
 # =========================================================
 
 @app.route("/")
@@ -220,21 +217,18 @@ def home():
 
     return jsonify({
 
-        "success": True,
+        "message": "KisaanConnect Backend is Running!",
 
-        "message":
-            "KisaanConnect Backend Running"
+        "status": "success"
 
     })
 
 
 # =========================================================
-# IMAGE
+# IMAGE SERVING
 # =========================================================
 
-@app.route(
-    "/uploads/<filename>"
-)
+@app.route("/uploads/<filename>")
 def uploaded_file(filename):
 
     return send_from_directory(
@@ -250,407 +244,290 @@ def uploaded_file(filename):
 # REGISTER
 # =========================================================
 
-@app.route(
-    "/api/register",
-    methods=["POST"]
-)
+@app.route("/api/register", methods=["POST"])
 def register():
-
-    data = request.get_json()
-
-    if not data:
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Invalid request."
-
-        }), 400
-
-
-    name = str(
-        data.get("name", "")
-    ).strip()
-
-
-    email = str(
-        data.get("email", "")
-    ).strip()
-
-
-    phone = str(
-        data.get("phone", "")
-    ).strip()
-
-
-    location = str(
-        data.get("location", "")
-    ).strip()
-
-
-    role = str(
-        data.get("role", "")
-    ).strip().lower()
-
-
-    upi_id = str(
-        data.get("upi_id", "")
-    ).strip()
-
-
-    # -----------------------------------------------------
-    # VALIDATION
-    # -----------------------------------------------------
-
-    if not all([
-
-        name,
-        email,
-        phone,
-        location,
-        role
-
-    ]):
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Please fill all details."
-
-        }), 400
-
-
-    if role not in [
-        "farmer",
-        "consumer"
-    ]:
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Invalid role."
-
-        }), 400
-
-
-    if (
-        not phone.isdigit()
-        or len(phone) != 10
-    ):
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Enter a valid 10-digit phone number."
-
-        }), 400
-
-
-    # Farmer UPI is required
-    if role == "farmer" and not upi_id:
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Farmer UPI ID is required."
-
-        }), 400
-
-
-    # Consumer does not need UPI
-    if role == "consumer":
-
-        upi_id = ""
-
-
-    conn = get_db()
-
 
     try:
 
-        cursor = conn.execute(
-            """
+        data = request.get_json()
+
+        if not data:
+
+            return jsonify({
+
+                "success": False,
+
+                "message": "Invalid data."
+
+            }), 400
+
+
+        name = data.get("name")
+
+        email = data.get("email")
+
+        phone = data.get("phone")
+
+        location = data.get("location")
+
+        role = data.get("role")
+
+
+        # -------------------------------------------------
+        # REQUIRED FIELD CHECK
+        # -------------------------------------------------
+
+        if not all([
+
+            name,
+
+            email,
+
+            phone,
+
+            location,
+
+            role
+
+        ]):
+
+            return jsonify({
+
+                "success": False,
+
+                "message": "Please fill all details."
+
+            }), 400
+
+
+        # -------------------------------------------------
+        # ROLE CHECK
+        # -------------------------------------------------
+
+        if role not in ["farmer", "consumer"]:
+
+            return jsonify({
+
+                "success": False,
+
+                "message": "Invalid role."
+
+            }), 400
+
+
+        # -------------------------------------------------
+        # PHONE CHECK
+        # -------------------------------------------------
+
+        if len(phone) != 10 or not phone.isdigit():
+
+            return jsonify({
+
+                "success": False,
+
+                "message":
+                    "Enter a valid 10-digit phone number."
+
+            }), 400
+
+
+        # -------------------------------------------------
+        # INSERT USER
+        # -------------------------------------------------
+
+        conn = get_db()
+
+        cursor = conn.execute("""
+
             INSERT INTO users
+
             (
                 name,
                 email,
                 phone,
                 location,
-                role,
-                upi_id
+                role
             )
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                name,
-                email,
-                phone,
-                location,
-                role,
-                upi_id
-            )
-        )
+
+            VALUES (?, ?, ?, ?, ?)
+
+        """, (
+
+            name,
+
+            email,
+
+            phone,
+
+            location,
+
+            role
+
+        ))
 
 
         user_id = cursor.lastrowid
 
-
         conn.commit()
 
-
-    except sqlite3.IntegrityError:
-
         conn.close()
+
+
+        return jsonify({
+
+            "success": True,
+
+            "message":
+                "Account created successfully!",
+
+            "user": {
+
+                "id": user_id,
+
+                "name": name,
+
+                "email": email,
+
+                "phone": phone,
+
+                "location": location,
+
+                "role": role
+
+            }
+
+        })
+
+
+    except Exception as e:
+
+        print("REGISTER ERROR:", str(e))
 
         return jsonify({
 
             "success": False,
 
-            "message":
-                "Email already registered."
+            "message": "Registration error: " + str(e)
 
-        }), 400
-
-
-    conn.close()
-
-
-    return jsonify({
-
-        "success": True,
-
-        "message":
-            "Account created successfully!",
-
-        "user": {
-
-            "id": user_id,
-
-            "name": name,
-
-            "email": email,
-
-            "phone": phone,
-
-            "location": location,
-
-            "role": role,
-
-            "upi_id":
-                upi_id
-                if role == "farmer"
-                else ""
-
-        }
-
-    })
+        }), 500
 
 
 # =========================================================
-# ADD PRODUCT
+# ADD PRODUCT WITH IMAGE
 # =========================================================
 
-@app.route(
-    "/api/products",
-    methods=["POST"]
-)
+@app.route("/api/products", methods=["POST"])
 def add_product():
-
-    farmer_id = request.form.get(
-        "farmer_id"
-    )
-
-    name = request.form.get(
-        "name"
-    )
-
-    category = request.form.get(
-        "category"
-    )
-
-    quantity = request.form.get(
-        "quantity"
-    )
-
-    price = request.form.get(
-        "price"
-    )
-
-    location = request.form.get(
-        "location"
-    )
-
-    description = request.form.get(
-        "description",
-        ""
-    )
-
-
-    image = request.files.get(
-        "image"
-    )
-
-
-    # -----------------------------------------------------
-    # REQUIRED FIELDS
-    # -----------------------------------------------------
-
-    if not all([
-
-        farmer_id,
-        name,
-        category,
-        quantity,
-        price,
-        location
-
-    ]):
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Please fill all required fields."
-
-        }), 400
-
-
-    # -----------------------------------------------------
-    # VALIDATE FARMER
-    # -----------------------------------------------------
-
-    conn = get_db()
-
-
-    farmer = conn.execute(
-        """
-        SELECT id, role
-        FROM users
-        WHERE id = ?
-        """,
-        (farmer_id,)
-    ).fetchone()
-
-
-    if not farmer:
-
-        conn.close()
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Farmer not found."
-
-        }), 404
-
-
-    if farmer["role"] != "farmer":
-
-        conn.close()
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Only farmers can add products."
-
-        }), 403
-
-
-    # -----------------------------------------------------
-    # NUMBER VALIDATION
-    # -----------------------------------------------------
 
     try:
 
-        quantity = float(quantity)
+        farmer_id = request.form.get("farmer_id")
 
-        price = float(price)
+        name = request.form.get("name")
 
-    except (
-        TypeError,
-        ValueError
-    ):
+        category = request.form.get("category")
 
-        conn.close()
+        quantity = request.form.get("quantity")
 
-        return jsonify({
+        price = request.form.get("price")
 
-            "success": False,
+        location = request.form.get("location")
 
-            "message":
-                "Quantity and price must be numbers."
+        description = request.form.get(
+            "description",
+            ""
+        )
 
-        }), 400
-
-
-    if quantity < 0:
-
-        conn.close()
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Stock cannot be negative."
-
-        }), 400
+        image = request.files.get("image")
 
 
-    if price < 0:
+        # -------------------------------------------------
+        # REQUIRED FIELD CHECK
+        # -------------------------------------------------
 
-        conn.close()
+        if not all([
 
-        return jsonify({
+            farmer_id,
 
-            "success": False,
+            name,
 
-            "message":
-                "Price cannot be negative."
+            category,
 
-        }), 400
+            quantity,
 
+            price,
 
-    # -----------------------------------------------------
-    # IMAGE
-    # -----------------------------------------------------
+            location
 
-    image_filename = None
+        ]):
 
+            return jsonify({
 
-    if image and image.filename:
+                "success": False,
 
-        extension = os.path.splitext(
-            image.filename
-        )[1].lower()
+                "message":
+                    "Please fill all required fields."
 
-
-        allowed = [
-
-            ".jpg",
-            ".jpeg",
-            ".png",
-            ".webp"
-
-        ]
+            }), 400
 
 
-        if extension not in allowed:
+        # -------------------------------------------------
+        # PRICE CHECK
+        # -------------------------------------------------
+
+        try:
+
+            price = float(price)
+
+        except (ValueError, TypeError):
+
+            return jsonify({
+
+                "success": False,
+
+                "message": "Invalid price."
+
+            }), 400
+
+
+        if price <= 0:
+
+            return jsonify({
+
+                "success": False,
+
+                "message":
+                    "Price must be greater than zero."
+
+            }), 400
+
+
+        # -------------------------------------------------
+        # FARMER CHECK
+        # -------------------------------------------------
+
+        conn = get_db()
+
+        farmer = conn.execute("""
+
+            SELECT id
+
+            FROM users
+
+            WHERE id = ?
+
+            AND role = ?
+
+        """, (
+
+            farmer_id,
+
+            "farmer"
+
+        )).fetchone()
+
+
+        if farmer is None:
 
             conn.close()
 
@@ -659,720 +536,507 @@ def add_product():
                 "success": False,
 
                 "message":
-                    "Only JPG, PNG and WEBP images are allowed."
+                    "Invalid farmer ID. Please login again."
 
             }), 400
 
 
-        image_filename = (
+        # -------------------------------------------------
+        # SAVE IMAGE
+        # -------------------------------------------------
 
-            str(uuid.uuid4())
-
-            + extension
-
-        )
+        image_filename = None
 
 
-        image.save(
+        if image and image.filename:
 
-            os.path.join(
+            extension = os.path.splitext(
 
-                UPLOAD_FOLDER,
+                image.filename
 
-                image_filename
+            )[1].lower()
+
+
+            allowed_extensions = [
+
+                ".jpg",
+
+                ".jpeg",
+
+                ".png",
+
+                ".webp"
+
+            ]
+
+
+            if extension not in allowed_extensions:
+
+                conn.close()
+
+                return jsonify({
+
+                    "success": False,
+
+                    "message":
+                        "Only JPG, JPEG, PNG and WEBP images are allowed."
+
+                }), 400
+
+
+            image_filename = (
+
+                str(uuid.uuid4())
+
+                + extension
 
             )
 
-        )
+
+            image.save(
+
+                os.path.join(
+
+                    app.config["UPLOAD_FOLDER"],
+
+                    image_filename
+
+                )
+
+            )
 
 
-    # -----------------------------------------------------
-    # INSERT PRODUCT
-    # -----------------------------------------------------
+        # -------------------------------------------------
+        # INSERT PRODUCT
+        # -------------------------------------------------
 
-    cursor = conn.execute(
-        """
-        INSERT INTO products
-        (
+        cursor = conn.execute("""
+
+            INSERT INTO products
+
+            (
+
+                farmer_id,
+
+                name,
+
+                category,
+
+                quantity,
+
+                price,
+
+                location,
+
+                description,
+
+                image
+
+            )
+
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+
+        """, (
+
             farmer_id,
+
             name,
+
             category,
+
             quantity,
+
             price,
+
             location,
+
             description,
-            image
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            farmer_id,
-            name,
-            category,
-            quantity,
-            price,
-            location,
-            description,
+
             image_filename
-        )
-    )
+
+        ))
 
 
-    product_id = cursor.lastrowid
+        product_id = cursor.lastrowid
+
+        conn.commit()
+
+        conn.close()
 
 
-    conn.commit()
+        return jsonify({
 
-    conn.close()
+            "success": True,
+
+            "message":
+                "Product added successfully!",
+
+            "product_id":
+                product_id
+
+        })
 
 
-    return jsonify({
+    except Exception as e:
 
-        "success": True,
+        print("ADD PRODUCT ERROR:", str(e))
 
-        "message":
-            "Product added successfully!",
+        return jsonify({
 
-        "product_id":
-            product_id
+            "success": False,
 
-    })
+            "message":
+                "Add Product Error: " + str(e)
+
+        }), 500
 
 
 # =========================================================
 # GET PRODUCTS
 # =========================================================
 
-@app.route(
-    "/api/products",
-    methods=["GET"]
-)
+@app.route("/api/products", methods=["GET"])
 def get_products():
 
-    conn = get_db()
+    try:
+
+        conn = get_db()
+
+        products = conn.execute("""
+
+            SELECT
+
+                products.*,
+
+                users.name AS farmer_name
+
+            FROM products
+
+            JOIN users
+
+            ON products.farmer_id = users.id
+
+            ORDER BY products.id DESC
+
+        """).fetchall()
 
 
-    rows = conn.execute(
-        """
-        SELECT
-
-            products.*,
-
-            users.name AS farmer_name,
-
-            users.upi_id AS farmer_upi
-
-        FROM products
-
-        JOIN users
-
-        ON products.farmer_id =
-           users.id
-
-        ORDER BY products.id DESC
-        """
-    ).fetchall()
+        conn.close()
 
 
-    conn.close()
+        result = []
 
 
-    products = []
+        for product in products:
+
+            image_url = None
 
 
-    for row in rows:
+            if product["image"]:
 
-        image_url = None
+                image_url = (
 
+                    "http://127.0.0.1:5000/uploads/"
 
-        if row["image"]:
+                    + product["image"]
 
-            image_url = (
-
-                "http://127.0.0.1:5000/uploads/"
-
-                + row["image"]
-
-            )
+                )
 
 
-        products.append({
+            result.append({
 
-            "id":
-                row["id"],
+                "id":
+                    product["id"],
 
-            "farmer_id":
-                row["farmer_id"],
+                "farmer_id":
+                    product["farmer_id"],
 
-            "farmer_name":
-                row["farmer_name"],
+                "farmer_name":
+                    product["farmer_name"],
 
-            "farmer_upi":
-                row["farmer_upi"] or "",
+                "name":
+                    product["name"],
 
-            "name":
-                row["name"],
+                "category":
+                    product["category"],
 
-            "category":
-                row["category"],
+                "quantity":
+                    product["quantity"],
 
-            "quantity":
-                row["quantity"],
+                "price":
+                    product["price"],
 
-            "price":
-                row["price"],
+                "location":
+                    product["location"],
 
-            "location":
-                row["location"],
+                "description":
+                    product["description"] or "",
 
-            "description":
-                row["description"] or "",
+                "image":
+                    image_url
 
-            "image":
-                image_url
+            })
+
+
+        return jsonify({
+
+            "success": True,
+
+            "products":
+                result
 
         })
 
 
-    return jsonify({
+    except Exception as e:
 
-        "success": True,
-
-        "products":
-            products
-
-    })
-
-
-# =========================================================
-# UPDATE STOCK
-# =========================================================
-
-@app.route(
-    "/api/products/<int:product_id>/stock",
-    methods=["PUT"]
-)
-def update_product_stock(
-    product_id
-):
-
-    data = request.get_json()
-
-
-    if not data:
+        print("GET PRODUCTS ERROR:", str(e))
 
         return jsonify({
 
             "success": False,
 
             "message":
-                "Invalid request."
+                "Unable to load products: " + str(e)
 
-        }), 400
-
-
-    farmer_id = data.get(
-        "farmer_id"
-    )
-
-    stock = data.get(
-        "stock"
-    )
-
-
-    if farmer_id is None or stock is None:
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Farmer ID and stock are required."
-
-        }), 400
-
-
-    try:
-
-        stock = float(stock)
-
-    except (
-        TypeError,
-        ValueError
-    ):
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Invalid stock value."
-
-        }), 400
-
-
-    if stock < 0:
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Stock cannot be negative."
-
-        }), 400
-
-
-    conn = get_db()
-
-
-    product = conn.execute(
-        """
-        SELECT id
-        FROM products
-        WHERE id = ?
-        AND farmer_id = ?
-        """,
-        (
-            product_id,
-            farmer_id
-        )
-    ).fetchone()
-
-
-    if not product:
-
-        conn.close()
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Product not found or you are not allowed to modify it."
-
-        }), 404
-
-
-    conn.execute(
-        """
-        UPDATE products
-
-        SET quantity = ?
-
-        WHERE id = ?
-
-        AND farmer_id = ?
-        """,
-        (
-            stock,
-            product_id,
-            farmer_id
-        )
-    )
-
-
-    conn.commit()
-
-    conn.close()
-
-
-    return jsonify({
-
-        "success": True,
-
-        "message":
-            "Stock updated successfully.",
-
-        "stock":
-            stock
-
-    })
-
-
-# =========================================================
-# DELETE PRODUCT
-# =========================================================
-
-@app.route(
-    "/api/products/<int:product_id>",
-    methods=["DELETE"]
-)
-def delete_product(
-    product_id
-):
-
-    farmer_id = request.args.get(
-        "farmer_id"
-    )
-
-
-    if not farmer_id:
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Farmer ID is required."
-
-        }), 400
-
-
-    conn = get_db()
-
-
-    product = conn.execute(
-        """
-        SELECT *
-
-        FROM products
-
-        WHERE id = ?
-
-        AND farmer_id = ?
-        """,
-        (
-            product_id,
-            farmer_id
-        )
-    ).fetchone()
-
-
-    if not product:
-
-        conn.close()
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Product not found or you are not allowed to delete it."
-
-        }), 404
-
-
-    # -----------------------------------------------------
-    # DELETE IMAGE
-    # -----------------------------------------------------
-
-    if product["image"]:
-
-        image_path = os.path.join(
-
-            UPLOAD_FOLDER,
-
-            product["image"]
-
-        )
-
-
-        if os.path.exists(image_path):
-
-            try:
-
-                os.remove(
-                    image_path
-                )
-
-            except OSError:
-
-                pass
-
-
-    # -----------------------------------------------------
-    # DELETE PRODUCT
-    # -----------------------------------------------------
-
-    conn.execute(
-        """
-        DELETE FROM products
-
-        WHERE id = ?
-
-        AND farmer_id = ?
-        """,
-        (
-            product_id,
-            farmer_id
-        )
-    )
-
-
-    conn.commit()
-
-    conn.close()
-
-
-    return jsonify({
-
-        "success": True,
-
-        "message":
-            "Product deleted successfully."
-
-    })
+        }), 500
 
 
 # =========================================================
 # PLACE ORDER
 # =========================================================
 
-@app.route(
-    "/api/orders",
-    methods=["POST"]
-)
+@app.route("/api/orders", methods=["POST"])
 def place_order():
-
-    data = request.get_json()
-
-
-    if not data:
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Invalid request."
-
-        }), 400
-
-
-    consumer_id = data.get(
-        "consumer_id"
-    )
-
-    product_id = data.get(
-        "product_id"
-    )
-
-    quantity = data.get(
-        "quantity"
-    )
-
-    delivery_location = str(
-        data.get(
-            "delivery_location",
-            ""
-        )
-    ).strip()
-
-    payment_method = str(
-        data.get(
-            "payment_method",
-            ""
-        )
-    ).strip()
-
-
-    if not all([
-
-        consumer_id,
-        product_id,
-        quantity,
-        delivery_location,
-        payment_method
-
-    ]):
-
-        return jsonify({
-
-            "success": False,
-
-            "message":
-                "Please fill all checkout details."
-
-        }), 400
-
-
-    # -----------------------------------------------------
-    # VALIDATE QUANTITY
-    # -----------------------------------------------------
 
     try:
 
-        qty = float(quantity)
+        data = request.get_json()
 
-    except (
-        TypeError,
-        ValueError
-    ):
 
-        return jsonify({
+        if not data:
 
-            "success": False,
+            return jsonify({
 
-            "message":
-                "Invalid quantity."
+                "success": False,
 
-        }), 400
+                "message":
+                    "Invalid order data."
 
+            }), 400
 
-    if qty <= 0:
 
-        return jsonify({
+        consumer_id = data.get(
+            "consumer_id"
+        )
 
-            "success": False,
+        product_id = data.get(
+            "product_id"
+        )
 
-            "message":
-                "Quantity must be greater than zero."
+        quantity = data.get(
+            "quantity"
+        )
 
-        }), 400
+        delivery_location = data.get(
+            "delivery_location"
+        )
 
+        payment_method = data.get(
+            "payment_method"
+        )
 
-    conn = get_db()
+        upi_id = data.get(
+            "upi_id"
+        )
 
+        delivery_charge = data.get(
+            "delivery_charge",
+            0
+        )
 
-    # -----------------------------------------------------
-    # CHECK CONSUMER
-    # -----------------------------------------------------
+        distance = data.get(
+            "distance",
+            0
+        )
 
-    consumer = conn.execute(
-        """
-        SELECT id, role
-        FROM users
-        WHERE id = ?
-        """,
-        (consumer_id,)
-    ).fetchone()
 
+        # =================================================
+        # CHECK REQUIRED DETAILS
+        # =================================================
 
-    if not consumer:
+        if not all([
 
-        conn.close()
+            consumer_id,
 
-        return jsonify({
+            product_id,
 
-            "success": False,
+            quantity,
 
-            "message":
-                "Consumer not found."
+            delivery_location,
 
-        }), 404
+            payment_method
 
+        ]):
 
-    if consumer["role"] != "consumer":
+            return jsonify({
 
-        conn.close()
+                "success": False,
 
-        return jsonify({
+                "message":
+                    "Please fill all checkout details."
 
-            "success": False,
+            }), 400
 
-            "message":
-                "Only consumers can place orders."
 
-        }), 403
+        # =================================================
+        # PAYMENT METHOD
+        # =================================================
 
+        payment_method = str(
+            payment_method
+        ).upper()
 
-    # -----------------------------------------------------
-    # GET PRODUCT + FARMER UPI
-    # -----------------------------------------------------
 
-    product = conn.execute(
-        """
-        SELECT
+        if payment_method not in [
 
-            products.*,
+            "UPI",
 
-            users.name AS farmer_name,
+            "COD"
 
-            users.upi_id AS farmer_upi
+        ]:
 
-        FROM products
+            return jsonify({
 
-        JOIN users
+                "success": False,
 
-        ON products.farmer_id =
-           users.id
+                "message":
+                    "Payment method must be UPI or COD."
 
-        WHERE products.id = ?
+            }), 400
 
-        """,
-        (product_id,)
-    ).fetchone()
 
+        # =================================================
+        # UPI CHECK
+        # =================================================
 
-    if not product:
+        if payment_method == "UPI" and not upi_id:
 
-        conn.close()
+            return jsonify({
 
-        return jsonify({
+                "success": False,
 
-            "success": False,
+                "message":
+                    "Please enter your UPI ID."
 
-            "message":
-                "Product not found."
+            }), 400
 
-        }), 404
 
+        # =================================================
+        # QUANTITY
+        # =================================================
 
-    # -----------------------------------------------------
-    # CHECK STOCK
-    # -----------------------------------------------------
+        try:
 
-    available_stock = float(
-        product["quantity"]
-    )
+            numeric_quantity = float(
+                quantity
+            )
 
+        except (ValueError, TypeError):
 
-    if available_stock <= 0:
+            return jsonify({
 
-        conn.close()
+                "success": False,
 
-        return jsonify({
+                "message":
+                    "Invalid quantity."
 
-            "success": False,
+            }), 400
 
-            "message":
-                "This product is out of stock."
 
-        }), 400
+        if numeric_quantity <= 0:
 
+            return jsonify({
 
-    if qty > available_stock:
+                "success": False,
 
-        conn.close()
+                "message":
+                    "Quantity must be greater than zero."
 
-        return jsonify({
+            }), 400
 
-            "success": False,
 
-            "message":
-                f"Only {available_stock:g} kg is available."
+        # =================================================
+        # DELIVERY CHARGE
+        # =================================================
 
-        }), 400
+        try:
 
+            delivery_charge = float(
+                delivery_charge
+            )
 
-    # -----------------------------------------------------
-    # CALCULATE TOTAL
-    # -----------------------------------------------------
+        except (ValueError, TypeError):
 
-    total = (
-        qty *
-        float(product["price"])
-    )
+            delivery_charge = 0
 
 
-    # -----------------------------------------------------
-    # FARMER UPI
-    # -----------------------------------------------------
+        if delivery_charge < 0:
 
-    farmer_upi = (
-        product["farmer_upi"]
-        or ""
-    )
+            delivery_charge = 0
 
 
-    # IMPORTANT:
-    # Consumer does NOT provide the farmer UPI.
-    # Backend automatically gets farmer UPI.
+        # =================================================
+        # DISTANCE
+        # =================================================
 
-    if payment_method == "UPI":
+        try:
 
-        if not farmer_upi:
+            distance = float(
+                distance
+            )
+
+        except (ValueError, TypeError):
+
+            distance = 0
+
+
+        if distance < 0:
+
+            distance = 0
+
+
+        # =================================================
+        # DATABASE
+        # =================================================
+
+        conn = get_db()
+
+
+        # =================================================
+        # CHECK CONSUMER
+        # =================================================
+
+        consumer = conn.execute("""
+
+            SELECT id
+
+            FROM users
+
+            WHERE id = ?
+
+            AND role = ?
+
+        """, (
+
+            consumer_id,
+
+            "consumer"
+
+        )).fetchone()
+
+
+        if consumer is None:
 
             conn.close()
 
@@ -1381,101 +1045,322 @@ def place_order():
                 "success": False,
 
                 "message":
-                    "Farmer has not added a UPI ID."
+                    "Invalid consumer ID. Please login again."
 
             }), 400
 
 
-    # -----------------------------------------------------
-    # SAVE ORDER
-    # -----------------------------------------------------
+        # =================================================
+        # GET PRODUCT
+        # =================================================
 
-    cursor = conn.execute(
-        """
-        INSERT INTO orders
-        (
-            consumer_id,
+        product = conn.execute("""
+
+            SELECT *
+
+            FROM products
+
+            WHERE id = ?
+
+        """, (
+
             product_id,
+
+        )).fetchone()
+
+
+        if product is None:
+
+            conn.close()
+
+            return jsonify({
+
+                "success": False,
+
+                "message":
+                    "Product not found."
+
+            }), 404
+
+
+        # =================================================
+        # STOCK CHECK
+        # =================================================
+
+        quantity_text = str(
+            product["quantity"]
+        )
+
+
+        match = re.search(
+
+            r"\d+(?:\.\d+)?",
+
+            quantity_text
+
+        )
+
+
+        if not match:
+
+            conn.close()
+
+            return jsonify({
+
+                "success": False,
+
+                "message":
+                    "Product stock is invalid."
+
+            }), 400
+
+
+        available_stock = float(
+            match.group()
+        )
+
+
+        if numeric_quantity > available_stock:
+
+            conn.close()
+
+            return jsonify({
+
+                "success": False,
+
+                "message":
+                    "Only "
+                    + quantity_text
+                    + " available."
+
+            }), 400
+
+
+        # =================================================
+        # PRODUCT PRICE
+        # =================================================
+
+        product_total = (
+
+            numeric_quantity
+
+            * float(product["price"])
+
+        )
+
+
+        # =================================================
+        # FINAL TOTAL
+        # =================================================
+
+        final_total = (
+
+            product_total
+
+            + delivery_charge
+
+        )
+
+
+        # =================================================
+        # REDUCE STOCK
+        # =================================================
+
+        remaining_stock = (
+
+            available_stock
+
+            - numeric_quantity
+
+        )
+
+
+        # Get unit such as kg, kg, litre etc.
+        unit_match = re.search(
+
+            r"[A-Za-z]+",
+
+            quantity_text
+
+        )
+
+
+        unit = ""
+
+
+        if unit_match:
+
+            unit = unit_match.group()
+
+
+        if remaining_stock.is_integer():
+
+            remaining_text = str(
+
+                int(remaining_stock)
+
+            )
+
+        else:
+
+            remaining_text = str(
+
+                round(
+
+                    remaining_stock,
+
+                    2
+
+                )
+
+            )
+
+
+        if unit:
+
+            remaining_text += " " + unit
+
+
+        # =================================================
+        # SAVE ORDER
+        # =================================================
+
+        cursor = conn.execute("""
+
+            INSERT INTO orders
+
+            (
+
+                consumer_id,
+
+                product_id,
+
+                quantity,
+
+                total_price,
+
+                delivery_charge,
+
+                distance,
+
+                delivery_location,
+
+                payment_method,
+
+                upi_id
+
+            )
+
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+
+        """, (
+
+            consumer_id,
+
+            product_id,
+
             quantity,
-            total_price,
+
+            final_total,
+
+            delivery_charge,
+
+            distance,
+
             delivery_location,
-            payment_method,
-            upi_id,
-            status
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            consumer_id,
-            product_id,
-            qty,
-            total,
-            delivery_location,
+
             payment_method,
 
-            # Store FARMER UPI
-            farmer_upi
-            if payment_method == "UPI"
-            else "",
+            upi_id
 
-            "Pending"
-        )
-    )
+        ))
 
 
-    order_id = cursor.lastrowid
+        order_id = cursor.lastrowid
 
 
-    # -----------------------------------------------------
-    # REDUCE STOCK
-    # -----------------------------------------------------
+        # =================================================
+        # UPDATE PRODUCT STOCK
+        # =================================================
 
-    new_stock = (
-        available_stock -
-        qty
-    )
+        conn.execute("""
 
+            UPDATE products
 
-    conn.execute(
-        """
-        UPDATE products
+            SET quantity = ?
 
-        SET quantity = ?
+            WHERE id = ?
 
-        WHERE id = ?
-        """,
-        (
-            new_stock,
+        """, (
+
+            remaining_text,
+
             product_id
-        )
-    )
+
+        ))
 
 
-    conn.commit()
+        conn.commit()
 
-    conn.close()
+        conn.close()
 
 
-    return jsonify({
+        # =================================================
+        # SUCCESS RESPONSE
+        # =================================================
 
-        "success": True,
+        return jsonify({
 
-        "message":
-            "Order placed successfully!",
+            "success": True,
 
-        "order_id":
-            order_id,
+            "message":
+                "Order placed successfully!",
 
-        "total_price":
-            total,
+            "order_id":
+                order_id,
 
-        "farmer_name":
-            product["farmer_name"],
+            "product_price":
+                round(
+                    product_total,
+                    2
+                ),
 
-        "farmer_upi":
-            farmer_upi
+            "delivery_charge":
+                round(
+                    delivery_charge,
+                    2
+                ),
 
-    })
+            "distance":
+                round(
+                    distance,
+                    2
+                ),
+
+            "total_price":
+                round(
+                    final_total,
+                    2
+                ),
+
+            "remaining_stock":
+                remaining_text
+
+        })
+
+
+    except Exception as e:
+
+        print("PLACE ORDER ERROR:", str(e))
+
+        return jsonify({
+
+            "success": False,
+
+            "message":
+                "Order error: " + str(e)
+
+        }), 500
 
 
 # =========================================================
@@ -1485,93 +1370,113 @@ def place_order():
 @app.route(
     "/api/orders/consumer/<int:consumer_id>"
 )
-def consumer_orders(
-    consumer_id
-):
+def consumer_orders(consumer_id):
 
-    conn = get_db()
+    try:
 
-
-    rows = conn.execute(
-        """
-        SELECT
-
-            orders.*,
-
-            products.name AS product_name,
-
-            products.image AS product_image,
-
-            users.name AS farmer_name
-
-        FROM orders
-
-        JOIN products
-
-        ON orders.product_id =
-           products.id
-
-        JOIN users
-
-        ON products.farmer_id =
-           users.id
-
-        WHERE orders.consumer_id = ?
-
-        ORDER BY orders.id DESC
-        """,
-        (consumer_id,)
-    ).fetchall()
+        conn = get_db()
 
 
-    conn.close()
+        orders = conn.execute("""
+
+            SELECT
+
+                orders.*,
+
+                products.name AS product_name,
+
+                users.name AS farmer_name
+
+            FROM orders
+
+            JOIN products
+
+            ON orders.product_id = products.id
+
+            JOIN users
+
+            ON products.farmer_id = users.id
+
+            WHERE orders.consumer_id = ?
+
+            ORDER BY orders.id DESC
+
+        """, (
+
+            consumer_id,
+
+        )).fetchall()
 
 
-    orders = []
+        conn.close()
 
 
-    for row in rows:
+        result = []
 
-        orders.append({
 
-            "id":
-                row["id"],
+        for order in orders:
 
-            "product_name":
-                row["product_name"],
+            result.append({
 
-            "farmer_name":
-                row["farmer_name"],
+                "id":
+                    order["id"],
 
-            "quantity":
-                row["quantity"],
+                "product_name":
+                    order["product_name"],
 
-            "total_price":
-                row["total_price"],
+                "farmer_name":
+                    order["farmer_name"],
 
-            "status":
-                row["status"],
+                "quantity":
+                    order["quantity"],
 
-            "delivery_location":
-                row["delivery_location"],
+                "total_price":
+                    order["total_price"],
 
-            "payment_method":
-                row["payment_method"],
+                "delivery_charge":
+                    order["delivery_charge"] or 0,
 
-            "upi_id":
-                row["upi_id"] or ""
+                "distance":
+                    order["distance"] or 0,
+
+                "status":
+                    order["status"],
+
+                "delivery_location":
+                    order["delivery_location"] or "",
+
+                "payment_method":
+                    order["payment_method"] or "",
+
+                "upi_id":
+                    order["upi_id"] or ""
+
+            })
+
+
+        return jsonify({
+
+            "success": True,
+
+            "orders":
+                result
 
         })
 
 
-    return jsonify({
+    except Exception as e:
 
-        "success": True,
+        print("CONSUMER ORDERS ERROR:", str(e))
 
-        "orders":
-            orders
+        return jsonify({
 
-    })
+            "success": False,
+
+            "message":
+                "Unable to load consumer orders: "
+                + str(e)
+
+        }), 500
 
 
 # =========================================================
@@ -1581,91 +1486,349 @@ def consumer_orders(
 @app.route(
     "/api/orders/farmer/<int:farmer_id>"
 )
-def farmer_orders(
-    farmer_id
-):
+def farmer_orders(farmer_id):
 
-    conn = get_db()
+    try:
 
-
-    rows = conn.execute(
-        """
-        SELECT
-
-            orders.*,
-
-            products.name AS product_name,
-
-            users.name AS consumer_name
-
-        FROM orders
-
-        JOIN products
-
-        ON orders.product_id =
-           products.id
-
-        JOIN users
-
-        ON orders.consumer_id =
-           users.id
-
-        WHERE products.farmer_id = ?
-
-        ORDER BY orders.id DESC
-        """,
-        (farmer_id,)
-    ).fetchall()
+        conn = get_db()
 
 
-    conn.close()
+        orders = conn.execute("""
+
+            SELECT
+
+                orders.*,
+
+                products.name AS product_name,
+
+                users.name AS consumer_name
+
+            FROM orders
+
+            JOIN products
+
+            ON orders.product_id = products.id
+
+            JOIN users
+
+            ON orders.consumer_id = users.id
+
+            WHERE products.farmer_id = ?
+
+            ORDER BY orders.id DESC
+
+        """, (
+
+            farmer_id,
+
+        )).fetchall()
 
 
-    orders = []
+        conn.close()
 
 
-    for row in rows:
+        result = []
 
-        orders.append({
 
-            "id":
-                row["id"],
+        for order in orders:
 
-            "product_name":
-                row["product_name"],
+            result.append({
 
-            "consumer_name":
-                row["consumer_name"],
+                "id":
+                    order["id"],
 
-            "quantity":
-                row["quantity"],
+                "product_name":
+                    order["product_name"],
 
-            "total_price":
-                row["total_price"],
+                "consumer_name":
+                    order["consumer_name"],
 
-            "status":
-                row["status"],
+                "quantity":
+                    order["quantity"],
 
-            "delivery_location":
-                row["delivery_location"],
+                "total_price":
+                    order["total_price"],
 
-            "payment_method":
-                row["payment_method"],
+                "delivery_charge":
+                    order["delivery_charge"] or 0,
 
-            "upi_id":
-                row["upi_id"] or ""
+                "distance":
+                    order["distance"] or 0,
+
+                "status":
+                    order["status"],
+
+                "delivery_location":
+                    order["delivery_location"] or "",
+
+                "payment_method":
+                    order["payment_method"] or "",
+
+                "upi_id":
+                    order["upi_id"] or ""
+
+            })
+
+
+        return jsonify({
+
+            "success": True,
+
+            "orders":
+                result
 
         })
 
 
-    return jsonify({
+    except Exception as e:
 
-        "success": True,
+        print("FARMER ORDERS ERROR:", str(e))
 
-        "orders":
-            orders
+        return jsonify({
 
-    })
+            "success": False,
+
+            "message":
+                "Unable to load farmer orders: "
+                + str(e)
+
+        }), 500
+
+
+# =========================================================
+# CANCEL ORDER
+# =========================================================
+
+@app.route(
+    "/api/orders/<int:order_id>/cancel",
+    methods=["PUT"]
+)
+def cancel_order(order_id):
+
+    try:
+
+        conn = get_db()
+
+
+        # -------------------------------------------------
+        # FIND ORDER
+        # -------------------------------------------------
+
+        order = conn.execute("""
+
+            SELECT *
+
+            FROM orders
+
+            WHERE id = ?
+
+        """, (
+
+            order_id,
+
+        )).fetchone()
+
+
+        if not order:
+
+            conn.close()
+
+            return jsonify({
+
+                "success": False,
+
+                "message":
+                    "Order not found."
+
+            }), 404
+
+
+        # -------------------------------------------------
+        # ALREADY CANCELLED
+        # -------------------------------------------------
+
+        if order["status"] == "Cancelled":
+
+            conn.close()
+
+            return jsonify({
+
+                "success": False,
+
+                "message":
+                    "Order is already cancelled."
+
+            }), 400
+
+
+        # -------------------------------------------------
+        # CANCEL ORDER
+        # -------------------------------------------------
+
+        conn.execute("""
+
+            UPDATE orders
+
+            SET status = ?
+
+            WHERE id = ?
+
+        """, (
+
+            "Cancelled",
+
+            order_id
+
+        ))
+
+
+        # -------------------------------------------------
+        # RETURN STOCK
+        # -------------------------------------------------
+
+        product = conn.execute("""
+
+            SELECT quantity
+
+            FROM products
+
+            WHERE id = ?
+
+        """, (
+
+            order["product_id"],
+
+        )).fetchone()
+
+
+        if product:
+
+            current_quantity_text = str(
+                product["quantity"]
+            )
+
+
+            current_match = re.search(
+
+                r"\d+(?:\.\d+)?",
+
+                current_quantity_text
+
+            )
+
+
+            order_match = re.search(
+
+                r"\d+(?:\.\d+)?",
+
+                str(order["quantity"])
+
+            )
+
+
+            if current_match and order_match:
+
+                current_stock = float(
+                    current_match.group()
+                )
+
+                cancelled_quantity = float(
+                    order_match.group()
+                )
+
+
+                new_stock = (
+
+                    current_stock
+
+                    + cancelled_quantity
+
+                )
+
+
+                unit_match = re.search(
+
+                    r"[A-Za-z]+",
+
+                    current_quantity_text
+
+                )
+
+
+                unit = ""
+
+
+                if unit_match:
+
+                    unit = unit_match.group()
+
+
+                if new_stock.is_integer():
+
+                    new_stock_text = str(
+                        int(new_stock)
+                    )
+
+                else:
+
+                    new_stock_text = str(
+                        round(new_stock, 2)
+                    )
+
+
+                if unit:
+
+                    new_stock_text += " " + unit
+
+
+                conn.execute("""
+
+                    UPDATE products
+
+                    SET quantity = ?
+
+                    WHERE id = ?
+
+                """, (
+
+                    new_stock_text,
+
+                    order["product_id"]
+
+                ))
+
+
+        conn.commit()
+
+        conn.close()
+
+
+        return jsonify({
+
+            "success": True,
+
+            "message":
+                "Order cancelled successfully."
+
+        })
+
+
+    except Exception as e:
+
+        print(
+            "CANCEL ORDER ERROR:",
+            str(e)
+        )
+
+        return jsonify({
+
+            "success": False,
+
+            "message":
+                "Cancel order error: "
+                + str(e)
+
+        }), 500
 
 
 # =========================================================
@@ -1676,9 +1839,8 @@ if __name__ == "__main__":
 
     init_db()
 
-
     print(
-        "================================"
+        "======================================"
     )
 
     print(
@@ -1686,7 +1848,11 @@ if __name__ == "__main__":
     )
 
     print(
-        "================================"
+        "======================================"
+    )
+
+    print(
+        "Backend running at:"
     )
 
     print(
@@ -1694,9 +1860,8 @@ if __name__ == "__main__":
     )
 
     print(
-        "================================"
+        "======================================"
     )
-
 
     app.run(
 
